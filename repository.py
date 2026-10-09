@@ -34,7 +34,7 @@ def _execute(sql, params=()):
     except sqlite3.Error as e:
         conn.rollback()
         logging.error("Ошибка записи: %s | %s", e, sql)
-        raise                                   # ошибку обработает интерфейс
+        raise                                  
     finally:
         conn.close()
 
@@ -42,11 +42,9 @@ def _execute(sql, params=()):
 class OrderRepository:
     """CRUD-операции с таблицей orders."""
 
-    # Все заказы (из представления - сразу с получателем и службой доставки)
     def get_all_orders(self):
         return _select("SELECT * FROM v_orders_full" + ORDER_BY)
 
-    # Один заказ по id -> объект Order (для формы редактирования)
     def get_order_by_id(self, order_id):
         rows = _select("SELECT id, tracking_number, description, amount, pickup_code,"
                        " cell, recipient_id, carrier_id, status, received_date,"
@@ -55,7 +53,6 @@ class OrderRepository:
             return None
         return Order(**dict(rows[0]))
 
-    # Приём заказа: дата приёмки - сегодня, срок хранения - STORAGE_DAYS дней
     def add_order(self, order):
         order_id = _execute(
             "INSERT INTO orders (tracking_number, description, amount, pickup_code,"
@@ -76,18 +73,20 @@ class OrderRepository:
              order.cell, order.recipient_id, order.carrier_id, order.id))
         logging.info("Изменён заказ id=%s", order.id)
 
-    # Удаление: если заказ уже выдан, триггер вызовет sqlite3.IntegrityError
     def delete_order(self, order_id):
         _execute("DELETE FROM orders WHERE id = ?", (order_id,))
         logging.info("Удалён заказ id=%s", order_id)
 
-    # Возврат отправителю (только для заказов на хранении)
-    def return_order(self, order_id):
+        def return_order(self, order_id):
+        order = self.get_order_by_id(order_id)
+        if order is None or order.status != "stored":
+            logging.warning("Возврат заказа id=%s отклонён: заказ не на хранении", order_id)
+            return False
         _execute("UPDATE orders SET status = 'returned'"
                  " WHERE id = ? AND status = 'stored'", (order_id,))
         logging.info("Заказ id=%s возвращён отправителю", order_id)
+        return True
 
-    # Поиск по трек-номеру/товару и получателю (LIKE) и по статусу
     def search_orders(self, text="", recipient="", status=None):
         sql = ("SELECT * FROM v_orders_full WHERE (tracking_number LIKE ?"
                " OR description LIKE ?) AND recipient LIKE ?")
@@ -128,7 +127,6 @@ class IssueRepository:
     """Выдача заказов получателям."""
 
     def issue_order(self, order_id, employee_id, paid_amount):
-        # Триггер trg_issues_after_insert переведёт заказ в статус "выдан"
         issue_id = _execute(
             "INSERT INTO issues (order_id, employee_id, issue_date, paid_amount)"
             " VALUES (?, ?, date('now', 'localtime'), ?)",
