@@ -1,7 +1,9 @@
+"""Семь учебных SQL-запросов к БД (JOIN, GROUP BY, SUM, AVG, LIKE и др.)."""
 from db import get_connection
 
 
 def run(sql, params=()):
+    """Выполняет SELECT с параметрами и возвращает все строки."""
     conn = get_connection()
     try:
         return conn.execute(sql, params).fetchall()
@@ -11,6 +13,7 @@ def run(sql, params=()):
 
 #заказы указанной службы доставки (JOIN)
 def orders_by_carrier(carrier):
+    """Заказы указанной службы доставки."""
     return run("SELECT o.tracking_number, o.description, r.full_name AS recipient, "
                "CASE o.status WHEN 'stored' THEN 'На хранении' "
                "WHEN 'issued' THEN 'Выдан' ELSE 'Возвращён' END AS status "
@@ -22,6 +25,7 @@ def orders_by_carrier(carrier):
 
 #10 получателей с наибольшим числом полученных заказов (GROUP BY + LIMIT)
 def top10_recipients():
+    """Десять получателей с наибольшим числом полученных заказов."""
     return run("SELECT r.full_name, COUNT(*) AS orders_count, "
                "SUM(i.paid_amount) AS paid "
                "FROM issues i "
@@ -32,12 +36,14 @@ def top10_recipients():
 
 #сумма, принятая при выдаче заказов за период (SUM + BETWEEN)
 def revenue(start, end):
+    """Сумма, принятая при выдаче заказов за период."""
     return run("SELECT COALESCE(SUM(paid_amount), 0) AS revenue FROM issues "
                "WHERE issue_date BETWEEN ? AND ?", (start, end))[0][0]
 
 
 #заказы, срок хранения которых заканчивается через days дней и раньше
 def expiring_orders(days=2):
+    """Заказы на хранении, срок которых истекает через days дней и раньше."""
     return run("SELECT tracking_number, description, storage_until FROM orders "
                "WHERE status = 'stored' AND storage_until <= date('now', 'localtime', ?) "
                "ORDER BY storage_until", (f"+{int(days)} days",))
@@ -45,11 +51,13 @@ def expiring_orders(days=2):
 
 #средняя сумма при выдаче (AVG)
 def avg_check():
+    """Средняя сумма, принятая при выдаче заказа."""
     return run("SELECT COALESCE(AVG(paid_amount), 0) AS avg_check FROM issues")[0][0]
 
 
 #выдачи по месяцам (strftime + GROUP BY)
 def issues_by_month():
+    """Число выдач и принятая сумма по месяцам."""
     return run("SELECT strftime('%Y-%m', issue_date) AS month, "
                "COUNT(*) AS issued, SUM(paid_amount) AS revenue FROM issues "
                "GROUP BY month ORDER BY month")
@@ -57,6 +65,7 @@ def issues_by_month():
 
 #поиск по трек-номеру или названию товара (LIKE)
 def search_orders(text):
+    """Поиск заказов по части трек-номера или названия товара."""
     return run("SELECT tracking_number, description, cell FROM orders "
                "WHERE tracking_number LIKE ? OR description LIKE ? "
                "ORDER BY description", (f"%{text}%", f"%{text}%"))
@@ -84,7 +93,8 @@ if __name__ == "__main__":
     print_table(orders_by_carrier("Ozon"))
     print("2. Топ-10 получателей по числу заказов")
     print_table(top10_recipients())
-    print("3. Принято при выдаче за 2026-01-01 - 2026-12-31:", revenue("2026-01-01", "2026-12-31"), "\n")
+    print("3. Принято при выдаче за 2026-01-01 - 2026-12-31:",
+          revenue("2026-01-01", "2026-12-31"), "\n")
     print("4. Заказы, срок хранения которых истекает в ближайшие 2 дня")
     print_table(expiring_orders())
     print("5. Средняя сумма при выдаче:", round(avg_check(), 2), "\n")

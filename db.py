@@ -1,4 +1,4 @@
-
+"""Подключение к SQLite: путь к БД, журнал приложения, режим только чтения."""
 import logging
 import os
 import sqlite3
@@ -23,6 +23,7 @@ _read_only = False
 
 
 def set_read_only(value):
+    """Включает или выключает режим только чтения для новых подключений."""
     global _read_only
     _read_only = value
 
@@ -38,6 +39,7 @@ def get_db_path():
 
 
 def get_connection():
+    """Открывает подключение к БД (в режиме чтения - если он включён)."""
     path = get_db_path()
     if _read_only:
         #открываем БД только для чтения

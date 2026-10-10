@@ -1,0 +1,5 @@
+pvz.db
+*.log
+backups/
+reports/
+__pycache__/

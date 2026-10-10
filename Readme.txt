@@ -23,4 +23,11 @@
   auth.py, validators.py, gui.py, main.py - вход, проверки, интерфейс
   backup.py, restore.py - резервное копирование и восстановление
   config.ini     - путь к файлу БД
+  setup.cfg      - настройки flake8 и pylint (длина строки 100, сложность не более 10)
   Название пункта выдачи меняется одной строкой: APP_NAME в db.py
+
+Проверка кода (этап 4):
+  python -m flake8 .
+  python -m pylint *.py
+  python -m radon cc -s -a .
+  run_tests.bat          - автотесты и покрытие

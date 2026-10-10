@@ -1,3 +1,4 @@
+"""Вход в систему: хеширование паролей и права ролей."""
 import hashlib
 import hmac
 import logging
@@ -15,6 +16,7 @@ def hash_password(password, salt=None):
 
 
 def check_password(password, stored):
+    """Сверяет пароль с сохранённой строкой "соль$хеш"."""
     salt_hex = stored.split("$")[0]
     new_hash = hash_password(password, bytes.fromhex(salt_hex))
     return hmac.compare_digest(new_hash, stored)
@@ -38,8 +40,10 @@ def login(login_name, password):
 
 
 def can_edit(role):
+    """Может ли роль изменять данные."""
     return role in ("admin", "manager") # report - только просмотр
 
 
 def is_admin(role):
+    """Является ли роль администратором."""
     return role == "admin"

@@ -1,3 +1,4 @@
+"""Доступ к данным: заказы, справочники, выдачи, сотрудники (слой DAL)."""
 import logging
 import sqlite3
 
@@ -42,9 +43,11 @@ class OrderRepository:
     """CRUD-операции с таблицей orders."""
 
     def get_all_orders(self):
+        """Все заказы: сначала лежащие на хранении."""
         return _select("SELECT * FROM v_orders_full" + ORDER_BY)
 
     def get_order_by_id(self, order_id):
+        """Возвращает Order по id или None, если заказа нет."""
         rows = _select("SELECT id, tracking_number, description, amount, pickup_code,"
                        " cell, recipient_id, carrier_id, status, received_date,"
                        " storage_until FROM orders WHERE id = ?", (order_id,))
@@ -53,6 +56,7 @@ class OrderRepository:
         return Order(**dict(rows[0]))
 
     def add_order(self, order):
+        """Принимает заказ на хранение. Возвращает id нового заказа."""
         order_id = _execute(
             "INSERT INTO orders (tracking_number, description, amount, pickup_code,"
             " cell, recipient_id, carrier_id, received_date, storage_until)"
@@ -65,6 +69,7 @@ class OrderRepository:
         return order_id
 
     def update_order(self, order):
+        """Сохраняет изменения заказа."""
         _execute(
             "UPDATE orders SET tracking_number = ?, description = ?, amount = ?,"
             " pickup_code = ?, cell = ?, recipient_id = ?, carrier_id = ? WHERE id = ?",
@@ -73,10 +78,12 @@ class OrderRepository:
         logging.info("Изменён заказ id=%s", order.id)
 
     def delete_order(self, order_id):
+        """Удаляет заказ (выданный удалить нельзя - сработает триггер)."""
         _execute("DELETE FROM orders WHERE id = ?", (order_id,))
         logging.info("Удалён заказ id=%s", order_id)
 
     def return_order(self, order_id):
+        """Возвращает заказ отправителю. False, если заказ не на хранении."""
         order = self.get_order_by_id(order_id)
         if order is None or order.status != "stored":
             logging.warning("Возврат заказа id=%s отклонён: заказ не на хранении", order_id)
@@ -85,8 +92,9 @@ class OrderRepository:
                  " WHERE id = ? AND status = 'stored'", (order_id,))
         logging.info("Заказ id=%s возвращён отправителю", order_id)
         return True
-    
+
     def search_orders(self, text="", recipient="", status=None):
+        """Поиск по трек-номеру/товару, получателю и (необязательно) статусу."""
         sql = ("SELECT * FROM v_orders_full WHERE (tracking_number LIKE ?"
                " OR description LIKE ?) AND recipient LIKE ?")
         params = [f"%{text}%", f"%{text}%", f"%{recipient}%"]
@@ -100,9 +108,11 @@ class ReferenceRepository:
     """Справочники: службы доставки, получатели."""
 
     def get_carriers(self):
+        """Список служб доставки (id, name)."""
         return _select("SELECT id, name FROM carriers ORDER BY name")
 
     def get_recipients(self):
+        """Список получателей (id, full_name, phone)."""
         return _select("SELECT id, full_name, phone FROM recipients ORDER BY full_name")
 
     def get_or_create_carrier(self, name):
@@ -126,6 +136,7 @@ class IssueRepository:
     """Выдача заказов получателям."""
 
     def issue_order(self, order_id, employee_id, paid_amount):
+        """Оформляет выдачу заказа. Возвращает id выдачи."""
         issue_id = _execute(
             "INSERT INTO issues (order_id, employee_id, issue_date, paid_amount)"
             " VALUES (?, ?, date('now', 'localtime'), ?)",
@@ -138,9 +149,11 @@ class EmployeeRepository:
     """Сотрудники (управление пользователями - только для admin)."""
 
     def get_employees(self):
+        """Список сотрудников без хешей паролей."""
         return _select("SELECT id, full_name, login, role FROM employees ORDER BY id")
 
     def add_employee(self, full_name, login_name, password, role):
+        """Добавляет сотрудника, пароль хранится в виде хеша."""
         return _execute(
             "INSERT INTO employees (full_name, role, login, password_hash)"
             " VALUES (?, ?, ?, ?)",

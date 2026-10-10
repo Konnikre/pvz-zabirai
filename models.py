@@ -1,4 +1,4 @@
-#классы данных (dataclass), соответствующие таблицам БД
+"""Классы данных (dataclass), соответствующие таблицам БД."""
 from dataclasses import dataclass
 from typing import Optional
 
@@ -14,6 +14,8 @@ STATUS_NAMES = {
 
 @dataclass
 class Carrier:
+    """Служба доставки."""
+
     id: Optional[int]
     name: str
     phone: Optional[str] = None
@@ -21,6 +23,8 @@ class Carrier:
 
 @dataclass
 class Recipient:
+    """Получатель заказов (клиент пункта выдачи)."""
+
     id: Optional[int]
     full_name: str
     phone: str
@@ -30,6 +34,8 @@ class Recipient:
 
 @dataclass
 class Employee:
+    """Сотрудник пункта выдачи."""
+
     id: Optional[int]
     full_name: str
     role: str
@@ -39,6 +45,8 @@ class Employee:
 
 @dataclass
 class Order:
+    """Заказ."""
+
     id: Optional[int]
     tracking_number: str
     description: str
@@ -54,6 +62,8 @@ class Order:
 
 @dataclass
 class Issue:
+    """Выдача заказа получателю."""
+
     id: Optional[int]
     order_id: int
     employee_id: int

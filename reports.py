@@ -1,4 +1,4 @@
-#отчёты с параметрами и экспорт
+"""Отчёты с параметрами и экспорт в CSV и HTML."""
 import csv
 import html
 import os
@@ -15,6 +15,8 @@ ALL_CARRIERS = "Все службы доставки"
 
 @dataclass
 class Report:
+    """Готовый отчёт: заголовки, строки, итог и номера строк для выделения."""
+
     name: str                       # короткое имя (для имени файла)
     title: str                      # заголовок отчёта
     headers: list                   # названия столбцов
@@ -42,6 +44,7 @@ def is_expiring(status, storage_until):
 
 #выдачи за период (start_date, end_date)
 def report_issues(start_date, end_date):
+    """Отчёт «Выдачи за период»."""
     rows = run("SELECT i.issue_date, o.tracking_number, o.description, r.full_name, "
                "i.paid_amount "
                "FROM issues i "
@@ -58,6 +61,7 @@ def report_issues(start_date, end_date):
 
 #10 лучших получателей (carrier - название службы доставки или "Все службы доставки")
 def report_top10(carrier=ALL_CARRIERS):
+    """Отчёт «Топ-10 получателей» (можно отфильтровать по службе доставки)."""
     sql = ("SELECT r.full_name, r.phone, COUNT(*) AS orders_count, SUM(i.paid_amount) AS paid "
            "FROM issues i "
            "JOIN orders o ON o.id = i.order_id "
@@ -77,6 +81,7 @@ def report_top10(carrier=ALL_CARRIERS):
 
 #заказы на хранении
 def report_stored():
+    """Отчёт «Заказы на хранении» с выделением истекающих сроков."""
     rows = run("SELECT tracking_number, description, recipient, carrier, cell, amount, "
                "storage_until, days_left FROM v_stored_orders "
                "ORDER BY days_left, tracking_number")
@@ -97,6 +102,7 @@ def _file_path(report, extension):
 
 
 def save_csv(report):
+    """Сохраняет отчёт в CSV (открывается в Excel). Возвращает путь к файлу."""
     path = _file_path(report, "csv")
     # utf-8-sig и разделитель ";" - чтобы файл правильно открылся в Excel
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
@@ -113,6 +119,7 @@ def save_csv(report):
 
 
 def save_html(report):
+    """Сохраняет отчёт в HTML-страницу. Возвращает путь к файлу."""
     path = _file_path(report, "html")
     head = "".join(f"<th>{html.escape(h)}</th>" for h in report.headers)
     body = ""

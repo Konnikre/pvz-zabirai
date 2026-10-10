@@ -1,3 +1,4 @@
+"""Интерфейс Tkinter: вход, список заказов, формы, отчёты, сотрудники (слой Presentation)."""
 import logging
 import sqlite3
 import tkinter as tk
@@ -34,6 +35,8 @@ REPORT_TYPES = ["Выдачи за период", "Топ-10 получател�
 
 
 class LoginWindow(tk.Tk):
+    """Окно входа: три попытки ввода пароля."""
+
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} - Вход")
@@ -55,6 +58,7 @@ class LoginWindow(tk.Tk):
         self.bind("<Return>", lambda event: self.on_login())
 
     def on_login(self):
+        """Проверяет логин и пароль, считает неудачные попытки."""
         login_name = self.login_var.get().strip()
         password = self.password_var.get()
         error = validators.validate_login(login_name, password)
@@ -83,6 +87,8 @@ class LoginWindow(tk.Tk):
 
 
 class MainWindow(tk.Tk):
+    """Главное окно: таблица заказов, поиск и действия по роли."""
+
     def __init__(self, user):
         super().__init__()
         self.user = user
@@ -106,6 +112,7 @@ class MainWindow(tk.Tk):
         self.reset()
 
     def create_menu(self):
+        """Главное меню; пункты недоступны, если у роли нет прав."""
         menubar = tk.Menu(self)
         admin = "normal" if auth.is_admin(self.user["role"]) else "disabled"
         edit = "normal" if self.can_edit else "disabled"
@@ -133,6 +140,7 @@ class MainWindow(tk.Tk):
         self.config(menu=menubar)
 
     def create_toolbar(self):
+        """Панель поиска и кнопки действий над заказами."""
         search = ttk.Frame(self, padding=8)
         search.pack(side="top", fill="x")
         ttk.Label(search, text="Трек-номер / товар:").pack(side="left")
@@ -158,6 +166,7 @@ class MainWindow(tk.Tk):
                 button.state(["disabled"])
 
     def create_table(self):
+        """Таблица заказов с прокруткой и цветовыми тегами."""
         frame = ttk.Frame(self)
         frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         self.tree = ttk.Treeview(frame, columns=list(COLUMNS), show="headings")
@@ -174,6 +183,7 @@ class MainWindow(tk.Tk):
             self.tree.bind("<Double-1>", lambda event: self.edit_order())
 
     def load_orders(self, rows):
+        """Заполняет таблицу и строку состояния. Красным - истекающий срок."""
         self.tree.delete(*self.tree.get_children())
         for r in rows:
             if r["status"] != STATUS_STORED:
@@ -203,6 +213,7 @@ class MainWindow(tk.Tk):
         self.tree.heading(col, command=lambda: self.sort_by(col, not descending))
 
     def get_selected_id(self):
+        """Id выбранного заказа или None (с предупреждением)."""
         selection = self.tree.selection()
         if not selection:
             messagebox.showwarning("Внимание", "Выберите заказ в таблице")
@@ -210,9 +221,11 @@ class MainWindow(tk.Tk):
         return int(self.tree.set(selection[0], "id"))
 
     def log_action(self, text):
+        """Записывает действие пользователя в журнал."""
         logging.info("Пользователь %s: %s", self.user["login"], text)
 
     def search(self):
+        """Поиск по заданным полям (после проверки ввода)."""
         text = self.text_var.get().strip()
         recipient = self.recipient_var.get().strip()
         for value in (text, recipient):
@@ -224,30 +237,42 @@ class MainWindow(tk.Tk):
         self.load_orders(self.repo.search_orders(text, recipient, status))
 
     def reset(self):
+        """Сбрасывает поиск и показывает все заказы."""
         self.text_var.set("")
         self.recipient_var.set("")
         self.status_var.set(ALL_STATUSES)
         self.load_orders(self.repo.get_all_orders())
 
     def after_save(self, text):
+        """Записывает действие в журнал и обновляет таблицу."""
         self.log_action(text)
         self.reset()
 
     def add_order(self):
+        """Открывает форму приёма заказа."""
         OrderForm(self, self.repo, self.refs, self.after_save)
 
-    def edit_order(self):
+    def get_stored_order(self, title, message):
+        """Выбранный заказ, если он на хранении; иначе предупреждение и None."""
         order_id = self.get_selected_id()
         if order_id is None:
-            return
+            return None
         order = self.repo.get_order_by_id(order_id)
-        if order.status != STATUS_STORED:
-            messagebox.showwarning("Изменение невозможно",
-                                   "Изменять можно только заказы на хранении")
+        if order is None or order.status != STATUS_STORED:
+            messagebox.showwarning(title, message)
+            return None
+        return order
+
+    def edit_order(self):
+        """Открывает форму изменения выбранного заказа."""
+        order = self.get_stored_order("Изменение невозможно",
+                                      "Изменять можно только заказы на хранении")
+        if order is None:
             return
         OrderForm(self, self.repo, self.refs, self.after_save, order=order)
 
     def delete_order(self):
+        """Удаляет выбранный заказ после подтверждения."""
         order_id = self.get_selected_id()
         if order_id is None:
             return
@@ -263,42 +288,39 @@ class MainWindow(tk.Tk):
         self.after_save(f"удалён заказ {number}")
 
     def issue_order(self):
-        order_id = self.get_selected_id()
-        if order_id is None:
-            return
-        order = self.repo.get_order_by_id(order_id)
-        if order.status != STATUS_STORED:
-            messagebox.showwarning("Выдача невозможна", "Этот заказ уже не на хранении")
+        """Открывает форму выдачи выбранного заказа."""
+        order = self.get_stored_order("Выдача невозможна", "Этот заказ уже не на хранении")
+        if order is None:
             return
         recipient = self.tree.set(self.tree.selection()[0], "recipient")
         IssueForm(self, order, recipient, self.user["id"], self.after_save)
 
     def return_order(self):
-        order_id = self.get_selected_id()
-        if order_id is None:
-            return
-        order = self.repo.get_order_by_id(order_id)
-        if order.status != STATUS_STORED:
-            messagebox.showwarning("Возврат невозможен",
-                                   "Вернуть можно только заказ, который лежит на хранении")
+        """Возвращает выбранный заказ отправителю после подтверждения."""
+        order = self.get_stored_order(
+            "Возврат невозможен", "Вернуть можно только заказ, который лежит на хранении")
+        if order is None:
             return
         if not messagebox.askyesno("Подтверждение",
                                    f"Вернуть заказ {order.tracking_number} отправителю?"):
             return
         try:
-            self.repo.return_order(order_id)
+            self.repo.return_order(order.id)
         except sqlite3.Error as e:
             messagebox.showerror("Ошибка", f"Не удалось оформить возврат: {e}")
             return
         self.after_save(f"заказ {order.tracking_number} возвращён отправителю")
 
     def open_reports(self):
+        """Открывает окно отчётов."""
         ReportWindow(self, self.refs)
 
     def open_users(self):
+        """Открывает список сотрудников."""
         UsersWindow(self)
 
     def make_backup(self):
+        """Создаёт резервную копию БД и сообщает результат."""
         status = backup.make_backup()
         self.log_action(f"резервная копия БД: {status}")
         if status == "OK":
@@ -320,11 +342,7 @@ class OrderForm(tk.Toplevel):
         self.resizable(False, False)
         self.transient(parent)
 
-        self.carriers = {r["name"]: r["id"] for r in ref_repo.get_carriers()}
-        recipients = ref_repo.get_recipients()
-        self.phones = {r["full_name"]: r["phone"] for r in recipients}   # ФИО -> телефон
-        self.recipients_by_id = {r["id"]: r for r in recipients}
-
+        self.load_references(ref_repo)
         self.tracking_var = tk.StringVar()
         self.descr_var = tk.StringVar()
         self.amount_var = tk.StringVar(value="0")
@@ -334,6 +352,22 @@ class OrderForm(tk.Toplevel):
         self.recipient_var = tk.StringVar()
         self.phone_var = tk.StringVar()
 
+        self.build_widgets()
+        if order:
+            self.fill_from_order(order)
+
+        self.wait_visibility()
+        self.grab_set()
+
+    def load_references(self, ref_repo):
+        """Загружает службы доставки и получателей для выпадающих списков."""
+        self.carriers = {r["name"]: r["id"] for r in ref_repo.get_carriers()}
+        recipients = ref_repo.get_recipients()
+        self.phones = {r["full_name"]: r["phone"] for r in recipients}   # ФИО -> телефон
+        self.recipients_by_id = {r["id"]: r for r in recipients}
+
+    def build_widgets(self):
+        """Создаёт поля ввода и кнопки формы."""
         frame = ttk.Frame(self, padding=12)
         frame.pack()
         recipient_box = ttk.Combobox(frame, textvariable=self.recipient_var,
@@ -360,27 +394,50 @@ class OrderForm(tk.Toplevel):
         ttk.Button(buttons, text="Сохранить", command=self.save).pack(side="left", padx=4)
         ttk.Button(buttons, text="Отмена", command=self.destroy).pack(side="left")
 
-        if order:
-            recipient = self.recipients_by_id.get(order.recipient_id)
-            self.tracking_var.set(order.tracking_number)
-            self.descr_var.set(order.description)
-            self.amount_var.set(str(order.amount))
-            self.code_var.set(order.pickup_code)
-            self.cell_var.set(order.cell)
-            self.carrier_var.set(next((n for n, i in self.carriers.items()
-                                       if i == order.carrier_id), ""))
-            if recipient:
-                self.recipient_var.set(recipient["full_name"])
-                self.phone_var.set(recipient["phone"])
+    def fill_from_order(self, order):
+        """Подставляет в форму данные редактируемого заказа."""
+        recipient = self.recipients_by_id.get(order.recipient_id)
+        self.tracking_var.set(order.tracking_number)
+        self.descr_var.set(order.description)
+        self.amount_var.set(str(order.amount))
+        self.code_var.set(order.pickup_code)
+        self.cell_var.set(order.cell)
+        self.carrier_var.set(next((n for n, i in self.carriers.items()
+                                   if i == order.carrier_id), ""))
+        if recipient:
+            self.recipient_var.set(recipient["full_name"])
+            self.phone_var.set(recipient["phone"])
 
-        self.wait_visibility()
-        self.grab_set()
+    def write_order(self, fields, carrier, recipient, phone):
+        """Записывает заказ в БД. При ошибке показывает сообщение и возвращает False."""
+        try:
+            order = Order(
+                id=self.order.id if self.order else None,
+                carrier_id=self.ref_repo.get_or_create_carrier(carrier),
+                recipient_id=self.ref_repo.get_or_create_recipient(recipient, phone),
+                **fields)
+            if self.order:
+                self.order_repo.update_order(order)
+            else:
+                self.order_repo.add_order(order)
+        except sqlite3.IntegrityError as e:
+            if "tracking_number" in str(e).lower():
+                message = "Заказ с таким трек-номером уже есть в базе"
+            else:
+                message = f"Нарушено ограничение БД: {e}"
+            messagebox.showerror("Ошибка", message, parent=self)
+            return False
+        except sqlite3.Error as e:
+            messagebox.showerror("Ошибка", f"Не удалось сохранить заказ: {e}", parent=self)
+            return False
+        return True
 
     def fill_phone(self):
         """При выборе известного получателя подставляем его телефон."""
         self.phone_var.set(self.phones.get(self.recipient_var.get(), ""))
 
     def save(self):
+        """Проверяет форму и сохраняет заказ (приём или изменение)."""
         tracking = self.tracking_var.get().strip()
         descr = self.descr_var.get().strip()
         amount = self.amount_var.get().strip()
@@ -396,27 +453,10 @@ class OrderForm(tk.Toplevel):
             messagebox.showerror("Ошибка ввода", "\n".join(errors), parent=self)
             return
 
-        try:
-            order = Order(
-                id=self.order.id if self.order else None,
-                tracking_number=tracking, description=descr,
-                amount=float(amount.replace(",", ".")),
-                pickup_code=code, cell=cell,
-                carrier_id=self.ref_repo.get_or_create_carrier(carrier),
-                recipient_id=self.ref_repo.get_or_create_recipient(recipient, phone))
-            if self.order:
-                self.order_repo.update_order(order)
-            else:
-                self.order_repo.add_order(order)
-        except sqlite3.IntegrityError as e:
-            if "tracking_number" in str(e).lower():
-                message = "Заказ с таким трек-номером уже есть в базе"
-            else:
-                message = f"Нарушено ограничение БД: {e}"
-            messagebox.showerror("Ошибка", message, parent=self)
-            return
-        except sqlite3.Error as e:
-            messagebox.showerror("Ошибка", f"Не удалось сохранить заказ: {e}", parent=self)
+        fields = dict(tracking_number=tracking, description=descr,
+                      amount=float(amount.replace(",", ".")),
+                      pickup_code=code, cell=cell)
+        if not self.write_order(fields, carrier, recipient, phone):
             return
 
         action = "изменён" if self.order else "принят"
@@ -462,6 +502,7 @@ class IssueForm(tk.Toplevel):
         entry.focus_set()
 
     def save(self):
+        """Проверяет код получения и оформляет выдачу."""
         error = validators.validate_issue(self.code_var.get().strip(), self.order.pickup_code)
         if error:
             messagebox.showerror("Ошибка ввода", error, parent=self)
@@ -476,6 +517,8 @@ class IssueForm(tk.Toplevel):
 
 
 class ReportWindow(tk.Toplevel):
+    """Окно отчётов: параметры, просмотр, экспорт в CSV и HTML."""
+
     def __init__(self, parent, ref_repo):
         super().__init__(parent)
         self.title("Отчёты")
@@ -489,6 +532,12 @@ class ReportWindow(tk.Toplevel):
         self.carrier_var = tk.StringVar(value=reports.ALL_CARRIERS)
         self.total_var = tk.StringVar()
 
+        self.create_params(ref_repo)
+        self.create_result()
+        self.on_type_change()
+
+    def create_params(self, ref_repo):
+        """Панель выбора отчёта и его параметров."""
         top = ttk.Frame(self, padding=8)
         top.pack(fill="x")
         ttk.Label(top, text="Отчёт:").grid(row=0, column=0, sticky="w", pady=3)
@@ -512,6 +561,8 @@ class ReportWindow(tk.Toplevel):
         ttk.Button(top, text="Сформировать", command=self.build_report).grid(
             row=0, column=4, rowspan=3, padx=20)
 
+    def create_result(self):
+        """Таблица результата, итоговая строка и кнопки экспорта."""
         self.tree = ttk.Treeview(self, show="headings")
         self.tree.tag_configure("low", foreground="red")
         self.tree.pack(fill="both", expand=True, padx=8)
@@ -524,7 +575,6 @@ class ReportWindow(tk.Toplevel):
                    command=lambda: self.save("csv")).pack(side="left")
         ttk.Button(bottom, text="Сохранить в HTML",
                    command=lambda: self.save("html")).pack(side="left", padx=6)
-        self.on_type_change()
 
     def on_type_change(self):
         """Доступны только параметры выбранного отчёта."""
@@ -534,6 +584,7 @@ class ReportWindow(tk.Toplevel):
         self.carrier_box.configure(state="readonly" if kind == REPORT_TYPES[1] else "disabled")
 
     def build_report(self):
+        """Формирует выбранный отчёт с проверкой параметров."""
         kind = self.type_var.get()
         try:
             if kind == REPORT_TYPES[0]:
@@ -553,6 +604,7 @@ class ReportWindow(tk.Toplevel):
         self.show_report()
 
     def show_report(self):
+        """Показывает сформированный отчёт в таблице."""
         rep = self.report
         self.tree.delete(*self.tree.get_children())
         columns = [f"c{i}" for i in range(len(rep.headers))]
@@ -566,6 +618,7 @@ class ReportWindow(tk.Toplevel):
         self.total_var.set(rep.total)
 
     def save(self, kind):
+        """Сохраняет сформированный отчёт в CSV или HTML."""
         if self.report is None:
             messagebox.showwarning("Внимание", "Сначала сформируйте отчёт", parent=self)
             return
@@ -581,6 +634,8 @@ class ReportWindow(tk.Toplevel):
 
 
 class UsersWindow(tk.Toplevel):
+    """Список сотрудников (только для администратора)."""
+
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Сотрудники")
@@ -599,12 +654,15 @@ class UsersWindow(tk.Toplevel):
         self.load()
 
     def load(self):
+        """Загружает сотрудников в таблицу."""
         self.tree.delete(*self.tree.get_children())
         for r in self.repo.get_employees():
             self.tree.insert("", "end", values=(r["id"], r["full_name"], r["login"], r["role"]))
 
 
 class UserForm(tk.Toplevel):
+    """Форма добавления сотрудника."""
+
     def __init__(self, parent, on_save):
         super().__init__(parent)
         self.on_save = on_save
@@ -636,6 +694,7 @@ class UserForm(tk.Toplevel):
         self.grab_set()
 
     def save(self):
+        """Проверяет данные и добавляет сотрудника."""
         name = self.name_var.get().strip()
         login_name = self.login_var.get().strip()
         errors = validators.validate_employee(name, login_name,

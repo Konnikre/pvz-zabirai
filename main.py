@@ -1,3 +1,4 @@
+"""Точка входа: окно входа, затем главное окно по роли пользователя."""
 import os
 
 from db import get_db_path, set_read_only
@@ -5,6 +6,7 @@ from gui import LoginWindow, MainWindow
 
 
 def main():
+    """Запускает приложение (при первом запуске создаёт БД)."""
     if not os.path.exists(get_db_path()):
         import seed
         seed.seed()

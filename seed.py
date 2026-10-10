@@ -1,11 +1,10 @@
-#создание БД и заполнение тестовыми данными
+"""Создание БД и заполнение тестовыми данными."""
 import os
 from datetime import date, timedelta
 
 from auth import hash_password
 from db import get_connection, get_db_path, init_db
-
-STORAGE_DAYS = 7
+from repository import STORAGE_DAYS
 
 CARRIERS = [  # (name, phone)
     ("Ozon", "8 (800) 000-00-01"),
@@ -34,7 +33,9 @@ EMPLOYEES = [  # (full_name, role, login, пароль)
 
 # Даты задаются "сколько дней назад", чтобы в любой день запуска
 # в базе были и выданные заказы, и заказы с истекающим сроком хранения.
-ORDERS = [  # (товар, к оплате, ячейка, получатель, служба, статус, принят дней назад, выдан дней назад)
+# (товар, к оплате, ячейка, получатель, служба, статус,
+#  принят дней назад, выдан дней назад)
+ORDERS = [
     ("Смартфон Xiaomi Redmi 13", 14990.0, "A-01", 1, 1, "issued", 118, 115),
     ("Кроссовки беговые", 0.0, "B-03", 2, 2, "issued", 105, 103),
     ("Куртка зимняя", 5490.0, "B-07", 3, 2, "issued", 98, 94),
@@ -65,6 +66,7 @@ ORDERS = [  # (товар, к оплате, ячейка, получатель, 
 
 
 def seed():
+    """Создаёт таблицы и заполняет их тестовыми данными."""
     init_db()
     conn = get_connection()
     today = date.today()
@@ -91,10 +93,11 @@ def seed():
                  received.isoformat(), until.isoformat(), recipient, carrier))
             if status == "issued":
                 employee = 1 if n % 5 == 0 else 2
+                issue_date = (today - timedelta(days=issued_ago)).isoformat()
                 # триггер trg_issues_after_insert сам переведёт заказ в статус "выдан"
                 conn.execute("INSERT INTO issues (order_id, employee_id, issue_date, paid_amount)"
                              " VALUES (?, ?, ?, ?)",
-                             (n, employee, (today - timedelta(days=issued_ago)).isoformat(), amount))
+                             (n, employee, issue_date, amount))
         conn.execute("DELETE FROM audit_log")     # начинаем работу с чистым журналом
         conn.commit()
     finally:

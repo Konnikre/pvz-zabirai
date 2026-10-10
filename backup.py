@@ -1,3 +1,4 @@
+"""Резервное копирование БД: копия «на лету», журнал и ротация копий."""
 import logging
 import os
 import sqlite3
@@ -18,8 +19,9 @@ if not logger.handlers:
 
 
 def make_backup():
+    """Создаёт копию БД в папке backups/. Возвращает "OK" или текст ошибки."""
     db_path = get_db_path()
-    prefix = Path(db_path).stem                     # например, "bookshop"
+    prefix = Path(db_path).stem                     # например, "pvz"
     os.makedirs(BACKUP_DIR, exist_ok=True)
     target = os.path.join(BACKUP_DIR, f"{prefix}_{date.today()}.db")
 
