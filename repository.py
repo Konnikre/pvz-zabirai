@@ -1,4 +1,3 @@
-
 import logging
 import sqlite3
 
@@ -6,7 +5,7 @@ import auth
 from db import get_connection
 from models import Order
 
-STORAGE_DAYS = 7       
+STORAGE_DAYS = 7
 
 
 ORDER_BY = (" ORDER BY CASE status WHEN 'stored' THEN 0 ELSE 1 END,"
@@ -34,7 +33,7 @@ def _execute(sql, params=()):
     except sqlite3.Error as e:
         conn.rollback()
         logging.error("Ошибка записи: %s | %s", e, sql)
-        raise                                  
+        raise
     finally:
         conn.close()
 
@@ -77,7 +76,7 @@ class OrderRepository:
         _execute("DELETE FROM orders WHERE id = ?", (order_id,))
         logging.info("Удалён заказ id=%s", order_id)
 
-        def return_order(self, order_id):
+    def return_order(self, order_id):
         order = self.get_order_by_id(order_id)
         if order is None or order.status != "stored":
             logging.warning("Возврат заказа id=%s отклонён: заказ не на хранении", order_id)
@@ -86,7 +85,7 @@ class OrderRepository:
                  " WHERE id = ? AND status = 'stored'", (order_id,))
         logging.info("Заказ id=%s возвращён отправителю", order_id)
         return True
-
+    
     def search_orders(self, text="", recipient="", status=None):
         sql = ("SELECT * FROM v_orders_full WHERE (tracking_number LIKE ?"
                " OR description LIKE ?) AND recipient LIKE ?")
