@@ -1,3 +1,4 @@
+import math
 import re
 from datetime import datetime
 
@@ -15,7 +16,10 @@ def validate_order(tracking, description, amount, pickup_code, cell,
     if not description.strip():
         errors.append("Укажите товар (описание заказа)")
     try:
-        if float(amount.replace(",", ".")) < 0:
+        value = float(amount.replace(",", "."))
+        if not math.isfinite(value):
+            errors.append("Сумма к оплате должна быть конечным числом")
+        elif value < 0:
             errors.append("Сумма к оплате не может быть отрицательной")
     except ValueError:
         errors.append("Сумма к оплате должна быть числом (0 - заказ оплачен)")
